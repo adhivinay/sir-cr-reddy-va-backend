@@ -1,8 +1,3 @@
-const axios = require('axios');
-
-const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
-const MISTRAL_MODEL = process.env.MISTRAL_MODEL || "mistral-small";
-
 const collegeSummary = `You are a virtual assistant for Sir CR Reddy College of Engineering, Vatluru.
 College details:
 - Location: Vatluru, Andhra Pradesh, India.
@@ -13,58 +8,46 @@ College details:
 - Academic calendar: Semesters start in July and January; exams typically held in December and May.
 `;
 
-function detectRedirect(query) {
-    const pageRedirects = [
-        { keywords: ['help desk', 'student help'], url: '/help-desk' },
-        { keywords: ['grievance', 'complaint'], url: '/grievance' },
-        { keywords: ['campus map', 'map'], url: '/campus-map' },
-        { keywords: ['faculty', 'professor', 'teacher'], url: '/faculty' },
-        { keywords: ['study material', 'materials'], url: '/faculty#materials' }
-    ];
-    const lowered = query.toLowerCase();
-    for (const redirect of pageRedirects) {
-        for (const kw of redirect.keywords) {
-            if (lowered.includes(kw)) {
-                return redirect.url;
-            }
-        }
-    }
-    return null;
+export async function getCopilotResponse(userPrompt = "Hello from Copilot!") {
+  const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
+  const fullPrompt = `${collegeSummary}\nUser Query: ${userPrompt}\nAnswer:`;
+  const body = {
+    model: "mistral-tiny",
+    messages: [{ role: "user", content: fullPrompt }]
+  };
+  try {
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${MISTRAL_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    const reply = data?.choices?.[0]?.message?.content || "No response from Copilot.";
+    return reply;
+  } catch (error) {
+    console.error("❌ Mistral API error:", error);
+    return "Error fetching Copilot response.";
+  }
 }
 
-module.exports = async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-    const { query } = req.body;
-    if (!query) {
-        return res.status(400).json({ error: 'Query is required' });
-    }
-    const redirectUrl = detectRedirect(query);
-    if (redirectUrl) {
-        return res.status(200).json({ redirect: redirectUrl });
-    }
-    const prompt = `${collegeSummary}\nUser Query: ${query}\nAnswer:`;
-    try {
-        const response = await axios.post(
-            'https://api.mistral.ai/v1/chat/completions',
-            {
-                model: MISTRAL_MODEL,
-                messages: [
-                    { role: "user", content: prompt }
-                ]
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-                    'Content-Type': 'application/json',
-                }
-            }
-        );
-        const answer = response.data.choices?.[0]?.message?.content || "Sorry, no answer generated.";
-        return res.status(200).json({ answer });
-    } catch (error) {
-        console.error(error?.response?.data || error);
-        return res.status(500).json({ error: 'Internal server error.' });
-    }
+// Optional: keep original endpoint handler
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+  const reply = await getCopilotResponse(prompt);
+  res.status(200).json({ reply });
+}
+
+export const config = {
+  api: {
+    bodyParser: true
+  }
 };
