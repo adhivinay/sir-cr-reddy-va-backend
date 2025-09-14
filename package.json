@@ -1,0 +1,11 @@
+{
+  "name": "sir-cr-reddy-backend",
+  "version": "1.0.0",
+  "main": "api/virtual-assistant.js",
+  "scripts": {
+    "start": "node api/virtual-assistant.js"
+  },
+  "dependencies": {
+    "axios": "^1.4.0"
+  }
+}
